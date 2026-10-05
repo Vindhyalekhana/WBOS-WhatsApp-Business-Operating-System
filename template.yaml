@@ -1,0 +1,442 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WBOS v2 Live Edition - Serverless Infrastructure
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        DYNAMODB_TABLE: !Ref WBOSStoreTable
+        EVENT_BUS_NAME: !Ref WBOSEventBus
+        EXECUTION_QUEUE_URL: !Ref ExecutionQueue
+
+Resources:
+  WBOSHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - "*"
+        AllowMethods:
+          - "*"
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${DashboardUserPool}"
+              audience:
+                - !Ref DashboardUserPoolClient
+            IdentitySource: "$request.header.Authorization"
+
+  DashboardUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: wbos-dashboard-pool
+      MfaConfiguration: 'ON'
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+
+  DashboardUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref DashboardUserPool
+      ClientName: wbos-dashboard-client
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+
+  WBOSStoreTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: "WBOS_Store"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI3
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  WBOSEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: wbos-events
+
+  WBOSEventsDLQ:
+    Type: AWS::SQS::Queue
+
+  ExecutionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 90
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt WBOSEventsDLQ.Arn
+        maxReceiveCount: 3
+
+  IngressFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.ingress.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ExecutionQueue.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:WBOS_Meta_Credentials*"
+      Events:
+        WebhookPostAPI:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WBOSHttpApi
+            Path: /webhook
+            Method: post
+        WebhookGetAPI:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WBOSHttpApi
+            Path: /webhook
+            Method: get
+
+  ExecutionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.execution.lambda_handler
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !GetAtt WBOSEventBus.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:WBOS_Meta_Credentials*"
+      Events:
+        ExecutionQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ExecutionQueue.Arn
+            BatchSize: 1
+
+  InvoiceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "wbos-invoices-${AWS::AccountId}-${AWS::Region}"
+
+  InvoiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.invoice.lambda_handler
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref InvoiceBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !GetAtt WBOSEventBus.Arn
+      Environment:
+        Variables:
+          INVOICE_BUCKET: !Ref InvoiceBucket
+      Events:
+        OrderCreatedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.orders
+              detail-type:
+                - OrderCreated
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+
+  NotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.notification.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:WBOS_Meta_Credentials*"
+      Events:
+        InvoiceGeneratedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.invoice
+              detail-type:
+                - InvoiceGenerated
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+        OrderStatusChangedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.orders
+              detail-type:
+                - OrderCreated
+                - OrderConfirmed
+                - OrderPreparationStarted
+                - OrderPreparationCompleted
+                - OrderDispatched
+                - OrderDelivered
+                - OrderCancelled
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+        CustomerReplyRequestedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.execution
+                - wbos.automations
+              detail-type:
+                - CustomerReplyRequested
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+        OwnerNotificationRequestedEvent:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.automations
+              detail-type:
+                - OwnerNotificationRequested
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+
+  DashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.dashboard.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+      Events:
+        DashboardApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WBOSHttpApi
+            Path: /api/{proxy+}
+            Method: any
+            Auth:
+              Authorizer: CognitoAuth
+        DashboardApiOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WBOSHttpApi
+            Path: /api/{proxy+}
+            Method: options
+
+  OrderTransitionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.order_transition.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !GetAtt WBOSEventBus.Arn
+      Events:
+        TransitionApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WBOSHttpApi
+            Path: /api/orders/{orderId}/transition
+            Method: post
+            Auth:
+              Authorizer: CognitoAuth
+        TransitionApiOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WBOSHttpApi
+            Path: /api/orders/{orderId}/transition
+            Method: options
+
+  DashboardEventFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.dashboard_events.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+      Events:
+        AllWBOSDomainEvents:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.orders
+                - wbos.invoice
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+
+  AutomationEngineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.automation_engine.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WBOSStoreTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !GetAtt WBOSEventBus.Arn
+      Events:
+        AutomationTriggers:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref WBOSEventBus
+            Pattern:
+              source:
+                - wbos.orders
+                - wbos.execution
+                - wbos.inventory
+              detail-type:
+                - OrderCreated
+                - OrderConfirmed
+                - OrderPreparationStarted
+                - OrderPreparationCompleted
+                - OrderDispatched
+                - OrderDelivered
+                - OrderCancelled
+                - MessageReceived
+                - InventoryLow
+            DeadLetterConfig:
+              Arn: !GetAtt WBOSEventsDLQ.Arn
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+
+Outputs:
+  WebhookApiUrl:
+    Description: "API Gateway endpoint URL for Prod environment"
+    Value: !Sub "https://${WBOSHttpApi}.execute-api.${AWS::Region}.amazonaws.com/webhook"
+  DashboardApiUrl:
+    Description: "API Gateway endpoint URL for Dashboard API"
+    Value: !Sub "https://${WBOSHttpApi}.execute-api.${AWS::Region}.amazonaws.com/api"
+  UserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref DashboardUserPool
+  UserPoolClientId:
+    Description: "Cognito User Pool Client ID"
+    Value: !Ref DashboardUserPoolClient
+  ExecutionQueueUrl:
+    Description: "Execution SQS Queue URL"
+    Value: !Ref ExecutionQueue

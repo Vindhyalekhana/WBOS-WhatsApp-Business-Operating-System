@@ -1,0 +1,462 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import './tokens.css';
+@import "tailwindcss";
+
+@theme {
+  --font-outfit: 'Outfit', sans-serif;
+  --font-jetbrains: 'JetBrains Mono', monospace;
+
+  /* Brand */
+  --color-wbos-green: var(--wbos-green);
+  --color-wbos-green-dark: var(--wbos-green-dark);
+  --color-wbos-green-soft: var(--wbos-green-soft);
+  --color-wbos-green-subtle: var(--wbos-green-subtle);
+
+  /* Typography */
+  --color-wbos-ink: var(--wbos-ink);
+  --color-wbos-ink-soft: var(--wbos-ink-soft);
+  --color-wbos-muted: var(--wbos-muted);
+  --color-wbos-placeholder: var(--wbos-placeholder);
+
+  /* Backgrounds */
+  --color-wbos-bg: var(--wbos-bg);
+  --color-wbos-surface: var(--wbos-surface);
+  --color-wbos-surface-raised: var(--wbos-surface-raised);
+  --color-wbos-ink-surface: var(--wbos-ink-surface);
+
+  /* Borders */
+  --color-wbos-border: var(--wbos-border);
+  --color-wbos-border-strong: var(--wbos-border-strong);
+
+  /* Semantic */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-subtle: var(--success-subtle);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ai: var(--ai);
+  --color-ai-soft: var(--ai-soft);
+  --color-event: var(--event);
+  --color-event-soft: var(--event-soft);
+
+  /* WhatsApp */
+  --color-wa-bg: var(--wa-bg);
+  --color-wa-bubble-self: var(--wa-bubble-self);
+
+  /* Shadows */
+  --shadow-subtle: var(--shadow-subtle);
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--wbos-bg);
+    color: var(--wbos-ink);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--wbos-border); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--wbos-border-strong); }
+}
+
+@layer utilities {
+  /* Stock bar utility */
+  .stock-bar { background: var(--wbos-border); }
+
+  /* Pulse dot */
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: relative;
+  }
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: inherit;
+    opacity: 0.3;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50% { transform: scale(1.5); opacity: 0; }
+  }
+
+  /* Pipeline connector */
+  .pipeline-step {
+    position: relative;
+  }
+  .pipeline-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 2px;
+    background: var(--wbos-border);
+  }
+
+  /* Fade-in animation */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeInUp 0.2s ease-out forwards; }
+
+  /* Dark card surface */
+  .wbos-dark-card {
+    background: var(--wbos-ink-surface);
+    color: white;
+  }
+}
+
+/* ─── WBOS AUTHENTICATION SHELL OVERRIDES ─── */
+
+.wbos-auth-shell [data-amplify-authenticator] {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  max-width: 100%;
+}
+
+.wbos-auth-shell .amplify-tabs {
+  display: none;
+}
+
+.wbos-auth-shell [data-amplify-router] {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.wbos-auth-shell .amplify-field-group__control {
+  flex-direction: column;
+}
+
+.wbos-auth-shell .amplify-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.wbos-auth-shell .amplify-input {
+  height: 52px;
+  border-radius: 8px;
+  border: 1px solid #D8DEE7;
+  background: #FFFFFF;
+  font-size: 15px;
+  color: #111827;
+  padding: 0 16px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.02);
+}
+
+.wbos-auth-shell .amplify-input:focus {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
+  outline: none;
+}
+
+.wbos-auth-shell .amplify-input::placeholder {
+  color: #667085;
+}
+
+.wbos-auth-shell .amplify-button[data-variation="primary"] {
+  height: 52px;
+  border-radius: 8px;
+  background: #0F8A9A;
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  margin-top: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(15, 138, 154, 0.15);
+}
+
+.wbos-auth-shell .amplify-button[data-variation="primary"]:hover {
+  background: #08717F;
+}
+
+.wbos-auth-shell .amplify-button[data-variation="primary"]:disabled {
+  background: #D8DEE7;
+  color: #667085;
+  box-shadow: none;
+}
+
+.wbos-auth-shell .amplify-button[data-variation="link"] {
+  color: #667085;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 12px;
+  text-decoration: none;
+  margin-top: 8px;
+}
+
+.wbos-auth-shell .amplify-button[data-variation="link"]:hover {
+  color: #111827;
+  background: transparent;
+}
+
+.wbos-auth-shell .amplify-heading {
+  display: none;
+}
+
+.wbos-auth-shell .amplify-field-group__append .amplify-button {
+  background: transparent;
+  border: none;
+  color: #667085;
+  margin-top: 0;
+  height: auto;
+}
+
+.wbos-auth-shell .amplify-alert {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.wbos-auth-shell * {
+  font-family: inherit;
+}
+
+
+
+/* WBOS Premium Authentication Shell - FINAL */
+.auth-page-root *, .auth-page-root *::before, .auth-page-root *::after {
+  box-sizing: border-box;
+}
+
+.auth-page-root {
+  min-height: 100dvh;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42% 58%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+@media (max-width: 900px) {
+  .auth-page-root {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wbos-auth-shell {
+  --amplify-colors-brand-primary-10: #e7f3f5;
+  --amplify-colors-brand-primary-80: #0F8A9A;
+  --amplify-colors-brand-primary-90: #0C7887;
+  --amplify-colors-brand-primary-100: #09535c;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.wbos-auth-form-card {
+  width: min(100%, 510px);
+  min-height: auto;
+  background: #FFFFFF;
+  border: 1px solid #E4E7EC;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(16, 24, 40, 0.07);
+  padding: 48px;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .wbos-auth-form-card {
+    padding: 32px;
+    width: min(100%, 520px);
+  }
+}
+@media (max-width: 640px) {
+  .wbos-auth-form-card {
+    padding: 20px;
+    border-radius: 12px;
+  }
+}
+
+.auth-content,
+.wbos-auth-shell [data-amplify-authenticator],
+.wbos-auth-shell [data-amplify-router],
+.wbos-auth-shell form,
+.wbos-auth-shell fieldset,
+.wbos-auth-shell .amplify-flex {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+}
+
+.wbos-auth-shell [data-amplify-authenticator],
+.wbos-auth-shell [data-amplify-router],
+.wbos-auth-shell .amplify-router-content {
+  box-shadow: none !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.wbos-auth-shell .amplify-flex {
+  gap: 20px; 
+}
+.wbos-auth-shell .amplify-field {
+  gap: 0; 
+  margin-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.wbos-auth-shell .amplify-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #344054;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.wbos-auth-shell .amplify-field-group__control {
+  position: relative;
+  width: 100%;
+  display: block !important;
+  box-sizing: border-box;
+}
+
+.wbos-auth-shell .amplify-input {
+  height: 52px;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 9px;
+  border: 1px solid #D8DEE7;
+  background: #FFFFFF;
+  color: #111827;
+  font-size: 15px;
+  padding-inline: 16px;
+  transition: all 150ms ease;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.wbos-auth-shell .amplify-field-group__control .amplify-input[type="password"] {
+  padding-right: 52px;
+}
+
+.wbos-auth-shell .amplify-input:hover {
+  border-color: #B8C4D0;
+}
+
+.wbos-auth-shell .amplify-input:focus,
+.wbos-auth-shell .amplify-input:focus-within {
+  border-color: #0F8A9A;
+  box-shadow: 0 0 0 3px rgba(15, 138, 154, 0.10);
+  outline: none;
+}
+
+/* Password Eye Button */
+.wbos-auth-shell .amplify-field-group__control .amplify-button {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 48px;
+  border-radius: 0 9px 9px 0;
+  border: none;
+  border-left: 1px solid #E4E7EC;
+  background: transparent;
+  color: #667085;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.wbos-auth-shell .amplify-field-group__control .amplify-button:hover {
+  background: #F8FAFC;
+}
+
+/* Sign In Button */
+.wbos-auth-shell .amplify-button[data-variation="primary"] {
+  width: 100%;
+  height: 52px;
+  background-color: #0F8A9A;
+  color: white;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: 650;
+  border: none;
+  transition: all 150ms ease;
+  margin-top: 24px;
+  box-shadow: none;
+  box-sizing: border-box;
+  position: static;
+}
+@media (max-width: 900px) {
+  .wbos-auth-shell .amplify-input,
+  .wbos-auth-shell .amplify-button[data-variation="primary"] {
+    height: 50px;
+  }
+}
+
+.wbos-auth-shell .amplify-button[data-variation="primary"]:hover {
+  background-color: #0C7887;
+}
+
+.wbos-auth-shell .amplify-button[data-variation="primary"]:active {
+  transform: translateY(1px);
+}
+
+.wbos-auth-shell .amplify-button[data-variation="primary"][disabled] {
+  background-color: rgba(15, 138, 154, 0.5);
+}
+
+/* Forgot Password Link */
+.wbos-auth-shell .amplify-button[data-variation="link"] {
+  color: #0F8A9A;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 0;
+  background: transparent;
+  display: block;
+  text-align: right;
+  margin-top: 10px;
+  width: 100%;
+  position: static;
+}
+
+.wbos-auth-shell .amplify-button[data-variation="link"]:hover {
+  color: #0C7887;
+  text-decoration: underline;
+  background: transparent;
+}
+
+.wbos-auth-shell .amplify-tabs { display: none; }
+.wbos-auth-shell .amplify-alert { background-color: #FEF3F2; border: 1px solid #FEE4E2; border-radius: 8px; color: #B42318; margin-bottom: 20px;}
+.wbos-auth-shell .amplify-alert__icon { color: #D92D20; }
